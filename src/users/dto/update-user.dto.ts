@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { 
-  IsNotEmpty, 
+  IsOptional,
   IsString, 
   MinLength, 
   MaxLength, 
@@ -13,7 +13,7 @@ import {
 @ValidatorConstraint({ name: 'strongPassword', async: false })
 export class StrongPasswordConstraint implements ValidatorConstraintInterface {
   validate(password: string) {
-    if (!password) return false;
+    if (!password) return true; // Opcional na atualização
     
     // Verificar sequências comuns apenas se forem muito óbvias
     const veryCommonSequences = ['123456789', 'qwertyuiop', 'password123', 'admin123'];
@@ -35,25 +35,27 @@ export class StrongPasswordConstraint implements ValidatorConstraintInterface {
   }
 }
 
-export class CreateUserDto {
+export class UpdateUserDto {
   @ApiProperty({
-    example: 'Rafael Lechensque',
+    example: 'João Silva Atualizado',
     description: 'Nome do usuário (2-50 caracteres, apenas letras, números e espaços)',
+    required: false,
   })
-  @IsNotEmpty({ message: 'Nome é obrigatório' })
+  @IsOptional()
   @IsString({ message: 'Nome deve ser uma string' })
   @MinLength(2, { message: 'Nome deve ter pelo menos 2 caracteres' })
   @MaxLength(50, { message: 'Nome deve ter no máximo 50 caracteres' })
   @Matches(/^[a-zA-Z0-9\sÀ-ÿ]+$/, { 
     message: 'Nome deve conter apenas letras, números, espaços e caracteres acentuados. Caracteres especiais como <, >, ", \' não são permitidos' 
   })
-  name: string;
+  name?: string;
 
   @ApiProperty({
-    example: 'MinhaSenh@123',
-    description: 'Senha forte (8+ chars, 1 maiúscula, 1 minúscula, 1 número, 1 especial, sem sequências)',
+    example: 'NovaSenha@123',
+    description: 'Nova senha forte (8+ chars, 1 maiúscula, 1 minúscula, 1 número, 1 especial)',
+    required: false,
   })
-  @IsNotEmpty({ message: 'Senha é obrigatória' })
+  @IsOptional()
   @IsString({ message: 'Senha deve ser uma string' })
   @MinLength(8, { message: 'Senha deve ter pelo menos 8 caracteres' })
   @MaxLength(128, { message: 'Senha deve ter no máximo 128 caracteres' })
@@ -61,5 +63,5 @@ export class CreateUserDto {
     message: 'Senha deve conter pelo menos: 1 letra minúscula, 1 maiúscula, 1 número e 1 caractere especial (@$!%*?&)' 
   })
   @Validate(StrongPasswordConstraint)
-  password: string;
+  password?: string;
 }

@@ -22,11 +22,24 @@ export class ChatRepository {
     };
 
     const rowData = {
-      ...chat,
+      id: chat.id,
+      senderId: chat.senderId,
+      content: chat.content,
       timestamp: chat.timestamp.toISOString(),
+      chatType: chat.chatType,
+      targetId: chat.targetId,
       isArquivo: chat.isArquivo ? 'true' : 'false',
     };
 
+    // Verificar se o arquivo existe
+    const fileExists = fs.existsSync(CSV_FILE_CHAT);
+    
+    if (!fileExists) {
+      // Criar arquivo com cabeçalho primeiro
+      fs.writeFileSync(CSV_FILE_CHAT, 'id,senderId,content,timestamp,chatType,targetId,isArquivo\n', 'utf8');
+    }
+
+    // Adicionar a linha de dados
     await new Promise<void>((resolve, reject) => {
       const stream = fs.createWriteStream(CSV_FILE_CHAT, { flags: 'a' });
       writeToStream(stream, [rowData], {
