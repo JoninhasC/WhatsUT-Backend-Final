@@ -187,8 +187,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       dispatch({ type: 'CLEAR_ERROR' });
 
       // Realiza login via API
-      console.log('🔐 Enviando requisição de login...');
+      console.log('🔐 Enviando requisição de login...', authData);
       const response = await authService.login(authData);
+      console.log('🔐 Resposta da API de login:', response);
       
       if (!response.access_token) {
         throw new Error('Token de acesso não recebido');
@@ -197,6 +198,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.log('🔐 Login bem-sucedido, obtendo perfil...');
       // Obtém dados do perfil do usuário
       const user = await authService.getProfile();
+      console.log('🔐 Perfil do usuário:', user);
 
       // Armazena dados no localStorage para persistência
       localStorage.setItem('access_token', response.access_token);
@@ -214,10 +216,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     } catch (error) {
       console.error('❌ Erro no login:', error);
+      if (error?.response) {
+        console.error('❌ Erro resposta da API:', error.response);
+      }
       const errorMessage = error instanceof Error 
         ? error.message 
         : 'Erro ao fazer login. Verifique suas credenciais.';
-      
       dispatch({ type: 'LOGIN_ERROR', payload: errorMessage });
       throw new Error(errorMessage);
     }

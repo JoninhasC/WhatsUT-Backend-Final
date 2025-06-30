@@ -17,7 +17,11 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './pages/LoginPage';
-import ChatPageNew from './pages/ChatPageNew';
+import WhatsAppChatPage from './pages/WhatsAppChatPage';
+import ProfilePage from './pages/ProfilePage';
+import UsersPage from './pages/UsersPage';
+import GroupsPage from './pages/GroupsPage';
+import SettingsPage from './pages/SettingsPage';
 import LoadingSpinner from './components/LoadingSpinner';
 
 /**
@@ -73,12 +77,32 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 /**
+ * Componente para o menu de navegação visível apenas para usuários autenticados
+ */
+function AuthenticatedMenu() {
+  const { user, logout } = useAuth();
+  return (
+    <nav className="bg-white shadow flex items-center px-4 py-2 gap-4 border-b border-gray-100">
+      <a href="/chat" className="font-semibold text-blue-700 hover:underline">Chat</a>
+      <a href="/users" className="font-semibold text-blue-700 hover:underline">Usuários</a>
+      <a href="/groups" className="font-semibold text-blue-700 hover:underline">Grupos</a>
+      <a href="/profile" className="font-semibold text-blue-700 hover:underline">Perfil</a>
+      <a href="/settings" className="font-semibold text-blue-700 hover:underline">Configurações</a>
+      <span className="ml-auto text-gray-500 text-sm">{user?.name}</span>
+      <button onClick={logout} className="ml-4 px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200">Sair</button>
+    </nav>
+  );
+}
+
+/**
  * Componente principal com roteamento
  * Define todas as rotas da aplicação
  */
 function AppRoutes() {
+  const { isAuthenticated } = useAuth();
   return (
     <Router>
+      {isAuthenticated && <AuthenticatedMenu />}
       <Routes>
         {/* Rota pública - Login/Registro */}
         <Route
@@ -90,12 +114,44 @@ function AppRoutes() {
           }
         />
 
-        {/* Rota protegida - Chat principal */}
+        {/* Rotas protegidas */}
         <Route
           path="/chat"
           element={
             <ProtectedRoute>
-              <ChatPageNew />
+              <WhatsAppChatPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/users"
+          element={
+            <ProtectedRoute>
+              <UsersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/groups"
+          element={
+            <ProtectedRoute>
+              <GroupsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <SettingsPage />
             </ProtectedRoute>
           }
         />

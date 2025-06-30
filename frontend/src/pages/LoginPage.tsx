@@ -115,8 +115,23 @@ function LoginPage() {
         errorMessage = error.message;
       }
       
+      console.error('Mensagem de erro final:', errorMessage);
+      
       setErrors({ general: errorMessage });
-      toast.error(errorMessage);
+      
+      // Toast de erro com duração mais longa e modo persistente
+      toast.error(errorMessage, {
+        duration: 8000, // 8 segundos
+        position: 'top-center',
+        style: {
+          background: '#dc2626',
+          color: '#fff',
+          fontSize: '16px',
+          padding: '16px',
+          borderRadius: '8px',
+          maxWidth: '500px',
+        },
+      });
     }
   };
 

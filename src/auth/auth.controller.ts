@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
+import { LoginDto } from './dto/login.dto';
 import { ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { OnlineUsersService } from './online-users.service';
@@ -30,7 +31,7 @@ export class AuthController {
     }
   })
   @Post('login')
-  async signIn(@Body() signInDto: CreateUserDto) {
+  async signIn(@Body() signInDto: LoginDto) {
     return this.authService.signIn(signInDto.name, signInDto.password);
   }
 
