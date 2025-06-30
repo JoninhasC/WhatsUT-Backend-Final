@@ -51,6 +51,16 @@ export interface Group {
 }
 
 /**
+ * Interface para representar um chat na lista de chats
+ */
+export interface Chat {
+  id: string;
+  name: string;
+  type: 'user' | 'group';
+  isOnline?: boolean;
+}
+
+/**
  * Tipos de chat suportados pelo sistema
  */
 export type ChatType = 'private' | 'group';

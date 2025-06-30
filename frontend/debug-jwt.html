@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug JWT - WhatsUT</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #2563eb;
+        }
+        .result {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success { border-color: #28a745; background-color: #d4edda; }
+        .error { border-color: #dc3545; background-color: #f8d7da; }
+        .warning { border-color: #ffc107; background-color: #fff3cd; }
+        .steps { background-color: #e7f3ff; border-color: #0066cc; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug JWT - WhatsUT</h1>
+        <p>Esta página vai ajudar a identificar exatamente onde está o problema no fluxo de autenticação JWT.</p>
+        
+        <div class="steps">
+            <strong>🎯 Passos do debug:</strong><br>
+            1. Limpar localStorage<br>
+            2. Fazer login e verificar resposta<br>
+            3. Verificar se token foi salvo<br>
+            4. Testar chamada para /auth/profile<br>
+            5. Verificar headers da requisição
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>1. 🧹 Limpar Estado</h2>
+        <button onclick="clearAll()">Limpar localStorage e sessionStorage</button>
+        <div id="clear-result" class="result"></div>
+    </div>
+
+    <div class="container">
+        <h2>2. 🔐 Teste de Login</h2>
+        <button onclick="testLogin()">Login com admin/admin123</button>
+        <div id="login-result" class="result"></div>
+    </div>
+
+    <div class="container">
+        <h2>3. 💾 Verificar Token Salvo</h2>
+        <button onclick="checkTokenStorage()">Verificar localStorage</button>
+        <div id="storage-result" class="result"></div>
+    </div>
+
+    <div class="container">
+        <h2>4. 👤 Teste de Profile</h2>
+        <button onclick="testProfile()">Chamar /auth/profile</button>
+        <div id="profile-result" class="result"></div>
+    </div>
+
+    <div class="container">
+        <h2>5. 🔬 Debug Detalhado</h2>
+        <button onclick="fullDebug()">Executar Debug Completo</button>
+        <div id="debug-result" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000';
+        let globalToken = null;
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            return `[${timestamp}] ${message}`;
+        }
+
+        function clearAll() {
+            const resultDiv = document.getElementById('clear-result');
+            localStorage.clear();
+            sessionStorage.clear();
+            globalToken = null;
+            
+            resultDiv.className = 'result success';
+            resultDiv.textContent = log('✅ localStorage e sessionStorage limpos!');
+        }
+
+        async function testLogin() {
+            const resultDiv = document.getElementById('login-result');
+            resultDiv.textContent = log('⏳ Fazendo login...');
+            
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: 'admin',
+                        password: 'admin123'
+                    })
+                });
+                
+                resultDiv.textContent += '\\n' + log(`🌐 Status HTTP: ${response.status} ${response.statusText}`);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                
+                const data = await response.json();
+                globalToken = data.access_token;
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent += '\\n' + log('✅ Login bem-sucedido!');
+                resultDiv.textContent += '\\n' + log('📄 Resposta completa:');
+                resultDiv.textContent += '\\n' + JSON.stringify(data, null, 2);
+                
+                if (data.access_token) {
+                    resultDiv.textContent += '\\n' + log(`🔑 Token recebido: ${data.access_token.substring(0, 50)}...`);
+                    
+                    // Salvar no localStorage como o frontend faz
+                    localStorage.setItem('access_token', data.access_token);
+                    resultDiv.textContent += '\\n' + log('💾 Token salvo no localStorage');
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent += '\\n' + log('❌ PROBLEMA: access_token não encontrado na resposta!');
+                }
+                
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent += '\\n' + log(`❌ Erro no login: ${error.message}`);
+            }
+        }
+
+        function checkTokenStorage() {
+            const resultDiv = document.getElementById('storage-result');
+            
+            const localToken = localStorage.getItem('access_token');
+            const sessionToken = sessionStorage.getItem('access_token');
+            const userData = localStorage.getItem('user_data');
+            
+            let result = log('📋 Estado do armazenamento:') + '\\n\\n';
+            
+            result += log(`🔑 localStorage.access_token: ${localToken ? '✅ Presente' : '❌ Ausente'}`) + '\\n';
+            if (localToken) {
+                result += log(`📝 Valor: ${localToken.substring(0, 50)}...`) + '\\n';
+                
+                // Decodificar JWT
+                try {
+                    const payload = JSON.parse(atob(localToken.split('.')[1]));
+                    result += log('📊 Payload do JWT:') + '\\n';
+                    result += JSON.stringify(payload, null, 2) + '\\n';
+                    
+                    const now = Math.floor(Date.now() / 1000);
+                    const isExpired = payload.exp < now;
+                    result += log(`⏰ Expira em: ${new Date(payload.exp * 1000).toLocaleString()}`) + '\\n';
+                    result += log(`⏰ Expirado: ${isExpired ? '❌ SIM' : '✅ NÃO'}`) + '\\n';
+                    
+                    globalToken = localToken;
+                } catch (e) {
+                    result += log('⚠️ Erro ao decodificar JWT') + '\\n';
+                }
+            }
+            
+            result += '\\n' + log(`💾 sessionStorage.access_token: ${sessionToken ? '✅ Presente' : '❌ Ausente'}`) + '\\n';
+            result += log(`👤 localStorage.user_data: ${userData ? '✅ Presente' : '❌ Ausente'}`) + '\\n';
+            
+            if (userData) {
+                result += log('👤 Dados do usuário:') + '\\n';
+                result += userData + '\\n';
+            }
+            
+            resultDiv.className = localToken ? 'result success' : 'result warning';
+            resultDiv.textContent = result;
+        }
+
+        async function testProfile() {
+            const resultDiv = document.getElementById('profile-result');
+            resultDiv.textContent = log('⏳ Testando /auth/profile...');
+            
+            const token = globalToken || localStorage.getItem('access_token');
+            
+            if (!token) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent += '\\n' + log('❌ Nenhum token disponível! Faça login primeiro.');
+                return;
+            }
+            
+            try {
+                resultDiv.textContent += '\\n' + log(`🔑 Usando token: ${token.substring(0, 50)}...`);
+                
+                const response = await fetch(`${API_BASE}/auth/profile`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                resultDiv.textContent += '\\n' + log(`🌐 Status HTTP: ${response.status} ${response.statusText}`);
+                
+                // Verificar headers enviados
+                resultDiv.textContent += '\\n' + log('📤 Headers enviados:');
+                resultDiv.textContent += '\\n' + `Authorization: Bearer ${token.substring(0, 50)}...`;
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent += '\\n' + log(`❌ Erro HTTP ${response.status}: ${errorText}`);
+                    return;
+                }
+                
+                const userData = await response.json();
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent += '\\n' + log('✅ Profile carregado com sucesso!');
+                resultDiv.textContent += '\\n' + log('👤 Dados do usuário:');
+                resultDiv.textContent += '\\n' + JSON.stringify(userData, null, 2);
+                
+                // Salvar dados do usuário
+                localStorage.setItem('user_data', JSON.stringify(userData));
+                resultDiv.textContent += '\\n' + log('💾 Dados do usuário salvos no localStorage');
+                
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent += '\\n' + log(`❌ Erro na requisição: ${error.message}`);
+            }
+        }
+
+        async function fullDebug() {
+            const resultDiv = document.getElementById('debug-result');
+            resultDiv.textContent = log('🔬 Iniciando debug completo...') + '\\n\\n';
+            
+            // Executar todos os testes em sequência
+            await new Promise(resolve => {
+                clearAll();
+                setTimeout(resolve, 500);
+            });
+            
+            resultDiv.textContent += log('1. ✅ Estado limpo') + '\\n';
+            
+            await new Promise(resolve => {
+                testLogin().then(() => {
+                    resultDiv.textContent += log('2. ✅ Login testado') + '\\n';
+                    resolve();
+                });
+            });
+            
+            await new Promise(resolve => {
+                setTimeout(() => {
+                    checkTokenStorage();
+                    resultDiv.textContent += log('3. ✅ Storage verificado') + '\\n';
+                    resolve();
+                }, 1000);
+            });
+            
+            await new Promise(resolve => {
+                setTimeout(() => {
+                    testProfile().then(() => {
+                        resultDiv.textContent += log('4. ✅ Profile testado') + '\\n';
+                        resultDiv.textContent += '\\n' + log('🎯 Debug completo finalizado!');
+                        resolve();
+                    });
+                }, 1000);
+            });
+        }
+    </script>
+</body>
+</html>

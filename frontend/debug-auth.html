@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Autenticação - WhatsUT</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #2563eb;
+        }
+        .result {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .success { border-color: #28a745; background-color: #d4edda; }
+        .error { border-color: #dc3545; background-color: #f8d7da; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug de Autenticação - WhatsUT</h1>
+        
+        <h2>1. Verificar LocalStorage</h2>
+        <button onclick="checkLocalStorage()">Verificar Token e Dados do Usuário</button>
+        <div id="localStorage-result" class="result"></div>
+        
+        <h2>2. Testar Login</h2>
+        <button onclick="testLogin()">Fazer Login com admin/admin123</button>
+        <div id="login-result" class="result"></div>
+        
+        <h2>3. Testar Endpoints Autenticados</h2>
+        <button onclick="testUsers()">Testar /users</button>
+        <button onclick="testProfile()">Testar /auth/profile</button>
+        <div id="api-result" class="result"></div>
+        
+        <h2>4. Limpar Storage</h2>
+        <button onclick="clearStorage()">Limpar LocalStorage</button>
+        <div id="clear-result" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000';
+        
+        function checkLocalStorage() {
+            const token = localStorage.getItem('access_token');
+            const userData = localStorage.getItem('user_data');
+            
+            let result = '📋 Estado do LocalStorage:\n\n';
+            result += `🔑 Token: ${token ? '✅ Presente' : '❌ Ausente'}\n`;
+            if (token) {
+                result += `📝 Token: ${token.substring(0, 50)}...\n`;
+                // Decode JWT payload (simple base64 decode, not verification)
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    result += `⏰ Expira em: ${new Date(payload.exp * 1000).toLocaleString()}\n`;
+                    result += `👤 Usuário: ${payload.name}\n`;
+                } catch (e) {
+                    result += `⚠️ Erro ao decodificar token\n`;
+                }
+            }
+            result += `\n👤 Dados do usuário: ${userData ? '✅ Presente' : '❌ Ausente'}\n`;
+            if (userData) {
+                result += `📝 Dados: ${userData}\n`;
+            }
+            
+            document.getElementById('localStorage-result').textContent = result;
+        }
+        
+        async function testLogin() {
+            const resultDiv = document.getElementById('login-result');
+            resultDiv.textContent = '⏳ Fazendo login...';
+            
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: 'admin',
+                        password: 'admin123'
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                }
+                
+                const data = await response.json();
+                
+                // Salvar no localStorage
+                localStorage.setItem('access_token', data.access_token);
+                
+                // Buscar perfil do usuário
+                const profileResponse = await fetch(`${API_BASE}/auth/profile`, {
+                    headers: {
+                        'Authorization': `Bearer ${data.access_token}`
+                    }
+                });
+                
+                if (profileResponse.ok) {
+                    const userProfile = await profileResponse.json();
+                    localStorage.setItem('user_data', JSON.stringify(userProfile));
+                }
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ Login realizado com sucesso!\n\n📄 Resposta: ${JSON.stringify(data, null, 2)}`;
+                
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Erro no login:\n\n${error.message}`;
+            }
+        }
+        
+        async function testUsers() {
+            await testEndpoint('/users', 'Usuários');
+        }
+        
+        async function testProfile() {
+            await testEndpoint('/auth/profile', 'Perfil');
+        }
+        
+        async function testEndpoint(endpoint, name) {
+            const resultDiv = document.getElementById('api-result');
+            resultDiv.textContent = `⏳ Testando ${name}...`;
+            
+            try {
+                const token = localStorage.getItem('access_token');
+                if (!token) {
+                    throw new Error('Token não encontrado. Faça login primeiro.');
+                }
+                
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                }
+                
+                const data = await response.json();
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ ${name} funcionando!\n\n📄 Resposta: ${JSON.stringify(data, null, 2)}`;
+                
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Erro ao testar ${name}:\n\n${error.message}`;
+            }
+        }
+        
+        function clearStorage() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user_data');
+            
+            const resultDiv = document.getElementById('clear-result');
+            resultDiv.className = 'result success';
+            resultDiv.textContent = '✅ LocalStorage limpo! Você pode fazer login novamente.';
+        }
+        
+        // Verificar ao carregar a página
+        window.onload = function() {
+            checkLocalStorage();
+        };
+    </script>
+</body>
+</html>

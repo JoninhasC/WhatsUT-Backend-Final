@@ -12,9 +12,9 @@
  * - Atualização de perfil do usuário
  */
 
-import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
 import type { User, AuthData, AuthContextType, LoadingState } from '../types';
-import { authService } from '../services/api';
+import { authService, userService } from '../services/api';
 
 /**
  * Interface para o estado do contexto de autenticação
@@ -188,17 +188,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Realiza login via API
       console.log('🔐 Enviando requisição de login...', authData);
-      const response = await authService.login(authData);
+      const response = await authService.login(authData.name, authData.password);
       console.log('🔐 Resposta da API de login:', response);
       
       if (!response.access_token) {
         throw new Error('Token de acesso não recebido');
       }
 
-      console.log('🔐 Login bem-sucedido, obtendo perfil...');
-      // Obtém dados do perfil do usuário
-      const user = await authService.getProfile();
-      console.log('🔐 Perfil do usuário:', user);
+      console.log('🔐 Login bem-sucedido!');
+      
+      // Usar dados do usuário que vêm do login (se disponíveis)
+      let user = response.user;
+      
+      // Se não vierem dados do usuário no login, tentar buscar o perfil
+      if (!user) {
+        console.log('🔐 Buscando perfil do usuário...');
+        user = await authService.getProfile();
+        console.log('🔐 Perfil do usuário:', user);
+      }
 
       // Armazena dados no localStorage para persistência
       localStorage.setItem('access_token', response.access_token);
@@ -214,7 +221,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         },
       });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Erro no login:', error);
       if (error?.response) {
         console.error('❌ Erro resposta da API:', error.response);
@@ -292,6 +299,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       dispatch({ type: 'CLEAR_ERROR' });
 
       // Atualiza dados via API
+      await userService.updateProfile(userData);
       const updatedUser = await authService.getProfile();
 
       // Atualiza dados no localStorage

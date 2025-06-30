@@ -11,8 +11,6 @@
  * - Design responsivo
  */
 
-import React from 'react';
-
 /**
  * Interface para props do componente LoadingSpinner
  */
@@ -57,7 +55,7 @@ function LoadingSpinner({
           ${sizeClasses[size]} 
           border-4 
           border-gray-200 
-          border-t-primary-500 
+          border-t-blue-500 
           rounded-full 
           animate-spin
         `}

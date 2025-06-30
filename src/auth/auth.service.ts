@@ -27,7 +27,14 @@ export class AuthService {
     this.onlineUsers.addUser(user.id);
 
     const payload = { name: user.name, sub: user.id };
-    return { access_token: this.jwtService.sign(payload) };
+    return { 
+      access_token: this.jwtService.sign(payload),
+      user: {
+        id: user.id,
+        name: user.name,
+        isOnline: true
+      }
+    };
   }
 
   async singOut(id: string) {

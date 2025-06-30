@@ -13,15 +13,17 @@
  */
 
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './pages/LoginPage';
-import WhatsAppChatPage from './pages/WhatsAppChatPage';
+import NewChatPage from './pages/NewChatPage';
 import ProfilePage from './pages/ProfilePage';
 import UsersPage from './pages/UsersPage';
 import GroupsPage from './pages/GroupsPage';
 import SettingsPage from './pages/SettingsPage';
+import AdminPage from './pages/AdminPage';
+import CreateGroupPage from './pages/CreateGroupPage';
 import LoadingSpinner from './components/LoadingSpinner';
 
 /**
@@ -83,11 +85,13 @@ function AuthenticatedMenu() {
   const { user, logout } = useAuth();
   return (
     <nav className="bg-white shadow flex items-center px-4 py-2 gap-4 border-b border-gray-100">
-      <a href="/chat" className="font-semibold text-blue-700 hover:underline">Chat</a>
-      <a href="/users" className="font-semibold text-blue-700 hover:underline">Usuários</a>
-      <a href="/groups" className="font-semibold text-blue-700 hover:underline">Grupos</a>
-      <a href="/profile" className="font-semibold text-blue-700 hover:underline">Perfil</a>
-      <a href="/settings" className="font-semibold text-blue-700 hover:underline">Configurações</a>
+      <Link to="/chat" className="font-semibold text-blue-700 hover:underline">Chat</Link>
+      <Link to="/users" className="font-semibold text-blue-700 hover:underline">Usuários</Link>
+      <Link to="/groups" className="font-semibold text-blue-700 hover:underline">Grupos</Link>
+      <Link to="/create-group" className="font-semibold text-blue-700 hover:underline">Criar Grupo</Link>
+      <Link to="/profile" className="font-semibold text-blue-700 hover:underline">Perfil</Link>
+      <Link to="/settings" className="font-semibold text-blue-700 hover:underline">Configurações</Link>
+      <Link to="/admin" className="font-semibold text-blue-700 hover:underline">Admin</Link>
       <span className="ml-auto text-gray-500 text-sm">{user?.name}</span>
       <button onClick={logout} className="ml-4 px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200">Sair</button>
     </nav>
@@ -119,7 +123,15 @@ function AppRoutes() {
           path="/chat"
           element={
             <ProtectedRoute>
-              <WhatsAppChatPage />
+              <NewChatPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/chat/:chatId"
+          element={
+            <ProtectedRoute>
+              <NewChatPage />
             </ProtectedRoute>
           }
         />
@@ -155,11 +167,31 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <AdminPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/create-group"
+          element={
+            <ProtectedRoute>
+              <CreateGroupPage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Rota raiz - Redireciona baseado na autenticação */}
         <Route
           path="/"
-          element={<Navigate to="/login" replace />}
+          element={
+            <PublicRoute>
+              <Navigate to="/login" replace />
+            </PublicRoute>
+          }
         />
 
         {/* Rota 404 - Página não encontrada */}
@@ -170,12 +202,12 @@ function AppRoutes() {
               <div className="text-center">
                 <h1 className="text-6xl font-bold text-gray-900 mb-4">404</h1>
                 <p className="text-xl text-gray-600 mb-8">Página não encontrada</p>
-                <a
-                  href="/chat"
+                <Link
+                  to="/chat"
                   className="btn-primary inline-block"
                 >
                   Voltar ao Chat
-                </a>
+                </Link>
               </div>
             </div>
           }
