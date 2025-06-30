@@ -58,11 +58,11 @@ export class ChatRepository {
     
     // 🏗️ CONSTRÓI OBJETO COMPLETO DA MENSAGEM
     // Pega dados recebidos e adiciona campos que faltam
-    const chat: Chat = {
+    const chat = new Chat({
       ...message,              // 📋 Espalha os dados recebidos
       id: v4(),               // 🆔 Gera ID único (UUID)
       timestamp: new Date(),  // ⏰ Adiciona timestamp atual
-    };
+    });
 
     // 📊 PREPARA DADOS PARA O CSV
     // Converte objeto JavaScript → linha CSV
@@ -161,7 +161,7 @@ export class ChatRepository {
         .on('error', reject)             // 🚨 Se der erro na leitura
         .on('data', (row) => {           // 📝 Para cada linha do arquivo
           // 🔄 CONVERTE LINHA CSV → OBJETO TYPESCRIPT
-          results.push({
+          results.push(new Chat({
             id: row.id,
             senderId: row.senderId,
             content: row.content,
@@ -169,7 +169,7 @@ export class ChatRepository {
             chatType: row.chatType as 'private' | 'group', // TypeScript casting
             targetId: row.targetId,
             isArquivo: row.isArquivo === 'true',      // string → boolean
-          });
+          }));
         })
         .on('end', () => resolve(results)); // ✅ Quando terminar, retorna resultados
     });

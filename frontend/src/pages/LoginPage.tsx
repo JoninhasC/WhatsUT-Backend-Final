@@ -313,8 +313,6 @@ function LoginPage() {
 
                 {/* 👤 CAMPO NOME */}
                 <Input
-                {/* 👤 CAMPO NOME */}
-                <Input
                   label="Nome completo"
                   type="text"
                   value={formData.name}

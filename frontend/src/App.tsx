@@ -17,7 +17,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-ro
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './pages/LoginPage';
-import NewChatPage from './pages/NewChatPage';
+import IntegratedChatPageSimple from './pages/IntegratedChatPageSimple';
 import ProfilePage from './pages/ProfilePage';
 import UsersPage from './pages/UsersPage';
 import GroupsPage from './pages/GroupsPage';
@@ -123,7 +123,7 @@ function AppRoutes() {
           path="/chat"
           element={
             <ProtectedRoute>
-              <NewChatPage />
+              <IntegratedChatPageSimple />
             </ProtectedRoute>
           }
         />
@@ -131,7 +131,7 @@ function AppRoutes() {
           path="/chat/:chatId"
           element={
             <ProtectedRoute>
-              <NewChatPage />
+              <IntegratedChatPageSimple />
             </ProtectedRoute>
           }
         />
