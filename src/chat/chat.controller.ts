@@ -22,7 +22,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiResponse, ApiParam, ApiTags } from '@nestjs/swagger';
 import { ChatRepository } from './chat.repository';
 import { GroupRepository } from '../group/group.repository';
-import { MessageDto } from './dto/create-message';
+import { MessageDto, SendMessageDto } from './dto/create-message';
 import { BanService } from '../bans/ban.service';
 
 // Validação de tipos de arquivo permitidos
@@ -327,17 +327,25 @@ export class ChatController {
   @ApiResponse({ status: 201, description: 'Mensagem enviada com sucesso' })
   async sendGeneric(
     @Request() req,
-    @Body() messageData: any,
+    @Body() messageData: SendMessageDto,
   ) {
     const id: string = req.user.id;
     
+    // Determinar groupId baseado nos dados
+    const groupId = messageData.groupId || (messageData.chatType === 'group' ? messageData.targetId : undefined);
+    
     // Verificar se o usuário está banido
-    await this.banService.validateUserAccess(id, messageData.groupId);
+    await this.banService.validateUserAccess(id, groupId);
     
     // Determinar tipo de mensagem baseado nos dados
-    if (messageData.groupId) {
+    if (groupId || messageData.chatType === 'group') {
       // Mensagem para grupo
-      const group = await this.groupRepo.findById(messageData.groupId);
+      const targetGroupId = groupId || messageData.targetId;
+      if (!targetGroupId) {
+        throw new BadRequestException('ID do grupo é obrigatório');
+      }
+      
+      const group = await this.groupRepo.findById(targetGroupId);
       if (!group) {
         throw new NotFoundException('Grupo não encontrado');
       }
@@ -350,7 +358,7 @@ export class ChatController {
         chatType: 'group',
         content: messageData.content,
         senderId: id,
-        targetId: messageData.groupId,
+        targetId: targetGroupId,
       });
       
       return {
@@ -360,6 +368,10 @@ export class ChatController {
     } else if (messageData.targetId || messageData.receiverId) {
       // Mensagem privada
       const targetId = messageData.targetId || messageData.receiverId;
+      if (!targetId) {
+        throw new BadRequestException('ID do destinatário é obrigatório');
+      }
+      
       const chat = await this.chatRepo.send({
         chatType: 'private',
         content: messageData.content,
