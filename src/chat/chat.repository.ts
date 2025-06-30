@@ -67,7 +67,7 @@ export class ChatRepository {
     const messages = await this.readAllMessages();
     return messages.filter(
       (m) => m.chatType === 'group' && m.targetId === groupId,
-    );
+    ).filter(m => m.targetId === groupId && m.chatType === 'group') as Chat[];
   }
 
   private async readAllMessages(): Promise<Chat[]> {

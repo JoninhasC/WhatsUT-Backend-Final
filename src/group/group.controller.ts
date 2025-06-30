@@ -20,13 +20,17 @@ import { ApiBearerAuth, ApiResponse, ApiTags, ApiOperation, ApiParam } from '@ne
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { BanService } from '../bans/ban.service';
 
 @ApiTags('Grupos')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('group')
+@Controller(['groups', 'group'])
 export class GroupController {
-  constructor(private readonly groupRepo: GroupRepository) {}
+  constructor(
+    private readonly groupRepo: GroupRepository,
+    private readonly banService: BanService,
+  ) {}
 
   @Get('my')
   @ApiOperation({ summary: 'Obter grupos do usuário autenticado' })
@@ -51,22 +55,19 @@ export class GroupController {
     @Body() createGroupDto: CreateGroupDto,
   ) {
     const { id }: { id: string } = req.user;
-
-    // Validar se o usuário não está tentando criar um grupo vazio
-    if (!createGroupDto.members || createGroupDto.members.length === 0) {
-      throw new BadRequestException('O grupo deve ter pelo menos um membro');
-    }
-
-    if (!createGroupDto.adminsId || createGroupDto.adminsId.length === 0) {
-      throw new BadRequestException('O grupo deve ter pelo menos um administrador');
-    }
     
-    const members = [...createGroupDto.members];
+    // Verificar se o usuário está banido
+    await this.banService.validateUserAccess(id);
+    
+    // Inicializar arrays vazios se não fornecidos
+    const members = createGroupDto.members ? [...createGroupDto.members] : [];
+    const adminsId = createGroupDto.adminsId ? [...createGroupDto.adminsId] : [];
+
+    // Garantir que o criador seja membro e admin
     if (!members.includes(id)) {
       members.push(id);
     }
 
-    const adminsId = [...createGroupDto.adminsId];
     if (!adminsId.includes(id)) {
       adminsId.push(id);
     }
@@ -76,6 +77,26 @@ export class GroupController {
       members,
       adminsId,
     });
+  }
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Criar novo grupo (compatibilidade)' })
+  @ApiResponse({ status: 201, description: 'Grupo criado com sucesso' })
+  async createCompat(
+    @Request() req,
+    @Body() createGroupDto: CreateGroupDto,
+  ) {
+    // Validação mínima - apenas nome é obrigatório
+    if (!createGroupDto.name) {
+      throw new BadRequestException('Nome do grupo é obrigatório');
+    }
+    
+    const group = await this.create(req, createGroupDto);
+    return {
+      message: 'Grupo criado com sucesso',
+      ...group
+    };
   }
 
   @Patch(':id/join')
@@ -90,7 +111,7 @@ export class GroupController {
       throw new NotFoundException('Grupo não encontrado');
     }
     if (group.pendingRequests?.includes(userId) || group.members?.includes(userId)) {
-      throw new ForbiddenException(
+      throw new BadRequestException(
         'Usuário já é membro ou tem uma solicitação pendente.',
       );
     }
@@ -99,8 +120,8 @@ export class GroupController {
     const updatedGroup = await this.groupRepo.update(group);
     
     return {
-      message: 'Solicitação de entrada enviada com sucesso',
-      group: updatedGroup
+      message: 'Solicitação de entrada enviada',
+      ...updatedGroup
     };
   }
 
@@ -131,7 +152,8 @@ export class GroupController {
 
     group.members.push(userIdToApprove);
     group.pendingRequests = group.pendingRequests.filter((id) => id !== userIdToApprove);
-    return await this.groupRepo.update(group);
+    const updatedGroup = await this.groupRepo.update(group);
+    return { message: 'Usuário aprovado no grupo', ...updatedGroup };
   }
 
   @Patch(':id/reject/:userId')
@@ -155,7 +177,8 @@ export class GroupController {
     }
 
     group.pendingRequests = group.pendingRequests.filter((id) => id !== userIdToReject);
-    return await this.groupRepo.update(group);
+    const updatedGroup = await this.groupRepo.update(group);
+    return { message: 'Solicitação rejeitada', ...updatedGroup };
   }
 
   @Patch(':id/ban/:userId')
@@ -186,15 +209,15 @@ export class GroupController {
 
     group.members = group.members.filter((id) => id !== userIdToBan);
     group.adminsId = group.adminsId.filter((id) => id !== userIdToBan);
-
-    return await this.groupRepo.update(group);
+    const updatedGroup = await this.groupRepo.update(group);
+    return { message: 'Usuário banido do grupo', ...updatedGroup };
   }
   
   @Delete(':id/leave')
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Sair de um grupo' })
   @ApiParam({ name: 'id', description: 'ID do grupo (UUID)', example: 'bb145801-dd77-4e34-bdea-bee5dd790f3e' })
-  @ApiResponse({ status: 204, description: 'Saiu do grupo com sucesso' })
+  @ApiResponse({ status: 200, description: 'Saiu do grupo com sucesso' })
   async leaveGroup(@Request() req, @Param('id', ParseUUIDPipe) groupId: string) {
     const { id: userId }: { id: string } = req.user;
     const group = await this.groupRepo.findById(groupId);
@@ -214,7 +237,7 @@ export class GroupController {
       if (group.adminsId.length === 0) {
         if (group.lastAdminRule === 'delete' || group.members.length === 0) {
           await this.groupRepo.delete(groupId);
-          return;
+          return { message: 'Grupo excluído após saída do último admin' };
         } 
         else if (group.lastAdminRule === 'promote' && group.members.length > 0) {
           group.adminsId.push(group.members[0]);
@@ -223,6 +246,7 @@ export class GroupController {
     }
 
     await this.groupRepo.update(group);
+    return { message: 'Saiu do grupo com sucesso' };
   }
 
   @Patch('ban-user/:userId')

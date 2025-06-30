@@ -76,8 +76,8 @@ export class GroupRepository {
     const newGroup: Group = {
       id: v4(),
       name: createGroupDto.name,
-      adminsId: createGroupDto.adminsId,
-      members: createGroupDto.members,
+      adminsId: createGroupDto.adminsId || [],
+      members: createGroupDto.members || [],
       pendingRequests: [],
       
       lastAdminRule: createGroupDto.lastAdminRule || 'promote',

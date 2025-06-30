@@ -12,16 +12,20 @@ export class UsersService {
     return this.usersRepo.findByName(username);
   }
 
+  async findById(userId: string) {
+    return this.usersRepo.findById(userId);
+  }
+
   async create({ name, password }: CreateUserDto) {
     const exitUser = await this.usersRepo.findByName(name);
     if (exitUser) throw new ConflictException('Usario ja cadastrado');
     const salt = await bcrypt.genSalt();
     const hashed = await bcrypt.hash(password, salt);
-    const { id, name: a } = await this.usersRepo.create({
+    const user = await this.usersRepo.create({
       name,
       password: hashed,
     });
 
-    return a;
+    return { id: user.id, name: user.name };
   }
 }

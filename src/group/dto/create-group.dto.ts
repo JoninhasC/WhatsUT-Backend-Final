@@ -29,26 +29,26 @@ export class CreateGroupDto {
 
   @ApiProperty({
     example: ['bb145801-dd77-4e34-bdea-bee5dd790f3e'],
-    description: 'Lista de IDs dos administradores (UUIDs válidos)',
+    description: 'Lista de IDs dos administradores (UUIDs válidos) - opcional, usuário criador será adicionado automaticamente',
+    required: false,
   })
-  @IsNotEmpty({ message: 'Lista de administradores é obrigatória' })
+  @IsOptional()
   @IsArray({ message: 'Lista de administradores deve ser um array' })
-  @ArrayNotEmpty({ message: 'Deve haver pelo menos um administrador' })
   @IsUUID(4, { each: true, message: 'Cada ID de administrador deve ser um UUID válido' })
-  adminsId: string[];
+  adminsId?: string[];
 
   @ApiProperty({
     example: [
       'bb145801-dd77-4e34-bdea-bee5dd790f3e',
       '6ee878d0-e36c-4596-a249-46f2cd948146',
     ],
-    description: 'Lista de IDs dos membros (UUIDs válidos)',
+    description: 'Lista de IDs dos membros (UUIDs válidos) - opcional, usuário criador será adicionado automaticamente',
+    required: false,
   })
-  @IsNotEmpty({ message: 'Lista de membros é obrigatória' })
+  @IsOptional()
   @IsArray({ message: 'Lista de membros deve ser um array' })
-  @ArrayNotEmpty({ message: 'Deve haver pelo menos um membro' })
   @IsUUID(4, { each: true, message: 'Cada ID de membro deve ser um UUID válido' })
-  members: string[];
+  members?: string[];
 
   @ApiProperty({
     description: "Regra para quando o último admin sair: 'promote' ou 'delete'",

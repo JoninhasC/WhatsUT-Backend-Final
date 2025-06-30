@@ -23,6 +23,7 @@ import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiResponse, ApiPara
 import { ChatRepository } from './chat.repository';
 import { GroupRepository } from '../group/group.repository';
 import { MessageDto } from './dto/create-message';
+import { BanService } from '../bans/ban.service';
 
 // Validação de tipos de arquivo permitidos
 const allowedMimeTypes = [
@@ -38,6 +39,26 @@ const allowedMimeTypes = [
 
 const maxFileSize = 5 * 1024 * 1024; // 5MB
 
+const multerErrorHandler = (req, file, cb) => {
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new BadRequestException('Tipo de arquivo não permitido'), false);
+  }
+};
+
+const multerLimitsHandler = {
+  fileSize: maxFileSize,
+  files: 1,
+};
+
+const handleFileSizeError = (err, req, res, next) => {
+  if (err && err.code === 'LIMIT_FILE_SIZE') {
+    throw new BadRequestException('Arquivo muito grande. Tamanho máximo: 5MB');
+  }
+  next(err);
+};
+
 @ApiTags('Chat')
 @Controller('chat')
 @ApiBearerAuth()
@@ -46,6 +67,7 @@ export class ChatController {
   constructor(
     private readonly chatRepo: ChatRepository,
     private readonly groupRepo: GroupRepository,
+    private readonly banService: BanService,
   ) {}
 
   @Get('private/:userId')
@@ -75,6 +97,10 @@ export class ChatController {
     @Body() { content }: MessageDto,
   ) {
     const id: string = req.user.id;
+    
+    // Verificar se o usuário está banido
+    await this.banService.validateUserAccess(id);
+    
     const chat = await this.chatRepo.send({
       chatType: 'private',
       content: content,
@@ -99,6 +125,9 @@ export class ChatController {
     @Body() { content }: MessageDto,
   ) {
     const id: string = req.user.id;
+    
+    // Verificar se o usuário está banido globalmente ou no grupo
+    await this.banService.validateUserAccess(id, groupId);
     
     // Verificar se o grupo existe
     const group = await this.groupRepo.findById(groupId);
@@ -288,6 +317,200 @@ export class ChatController {
         fileName: file.originalname,
         groupId: groupId
       }
+    };
+  }
+
+  // Rota compatível para /chat/send
+  @Post('send')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Enviar mensagem genérica' })
+  @ApiResponse({ status: 201, description: 'Mensagem enviada com sucesso' })
+  async sendGeneric(
+    @Request() req,
+    @Body() messageData: any,
+  ) {
+    const id: string = req.user.id;
+    
+    // Verificar se o usuário está banido
+    await this.banService.validateUserAccess(id, messageData.groupId);
+    
+    // Determinar tipo de mensagem baseado nos dados
+    if (messageData.groupId) {
+      // Mensagem para grupo
+      const group = await this.groupRepo.findById(messageData.groupId);
+      if (!group) {
+        throw new NotFoundException('Grupo não encontrado');
+      }
+      
+      if (!group.members?.includes(id)) {
+        throw new ForbiddenException('Usuário não é membro deste grupo');
+      }
+      
+      const chat = await this.chatRepo.send({
+        chatType: 'group',
+        content: messageData.content,
+        senderId: id,
+        targetId: messageData.groupId,
+      });
+      
+      return {
+        message: 'Mensagem enviada',
+        data: chat
+      };
+    } else if (messageData.targetId || messageData.receiverId) {
+      // Mensagem privada
+      const targetId = messageData.targetId || messageData.receiverId;
+      const chat = await this.chatRepo.send({
+        chatType: 'private',
+        content: messageData.content,
+        senderId: id,
+        targetId: targetId,
+      });
+      
+      return {
+        message: 'Mensagem enviada',
+        data: chat
+      };
+    } else {
+      throw new BadRequestException('Dados de mensagem inválidos');
+    }
+  }
+
+  // Rotas compatíveis para upload
+  @Post('upload/private/:userId')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Upload de arquivo para chat privado (compatibilidade)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Arquivo para upload',
+    type: 'multipart/form-data',
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: './uploads',
+        filename: (req, file, cb) => {
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = extname(file.originalname);
+          cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+        },
+      }),
+      limits: { fileSize: maxFileSize },
+      fileFilter: (req, file, cb) => {
+        if (allowedMimeTypes.includes(file.mimetype)) {
+          cb(null, true);
+        } else {
+          cb(new BadRequestException('Tipo de arquivo não permitido'), false);
+        }
+      },
+    }),
+  )
+  async uploadPrivateFile(
+    @Request() req,
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Nenhum arquivo foi enviado');
+    }
+
+    const senderId: string = req.user.id;
+
+    const chat = await this.chatRepo.send({
+      chatType: 'private',
+      content: file.filename,
+      senderId,
+      targetId: userId,
+      isArquivo: true,
+    });
+
+    return {
+      message: 'Arquivo enviado com sucesso',
+      data: chat,
+      filename: file.filename,
+    };
+  }
+
+  @Post('upload/group/:groupId')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Upload de arquivo para grupo (compatibilidade)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Arquivo para upload',
+    type: 'multipart/form-data',
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: './uploads',
+        filename: (req, file, cb) => {
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = extname(file.originalname);
+          cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+        },
+      }),
+      limits: { fileSize: maxFileSize },
+      fileFilter: (req, file, cb) => {
+        if (allowedMimeTypes.includes(file.mimetype)) {
+          cb(null, true);
+        } else {
+          cb(new BadRequestException('Tipo de arquivo não permitido'), false);
+        }
+      },
+    }),
+  )
+  async uploadGroupFile(
+    @Request() req,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Nenhum arquivo foi enviado');
+    }
+
+    const senderId: string = req.user.id;
+    
+    // Verificar se o grupo existe
+    const group = await this.groupRepo.findById(groupId);
+    if (!group) {
+      throw new NotFoundException('Grupo não encontrado');
+    }
+    
+    // Verificar se o usuário é membro do grupo
+    if (!group.members?.includes(senderId)) {
+      throw new ForbiddenException('Usuário não é membro deste grupo');
+    }
+
+    const chat = await this.chatRepo.send({
+      chatType: 'group',
+      content: file.filename,
+      senderId,
+      targetId: groupId,
+      isArquivo: true,
+    });
+
+    return {
+      message: 'Arquivo enviado com sucesso',
+      data: chat,
+      filename: file.filename,
     };
   }
 }

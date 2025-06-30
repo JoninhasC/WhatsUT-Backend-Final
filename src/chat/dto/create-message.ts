@@ -12,20 +12,20 @@ import {
 @ValidatorConstraint({ name: 'safeMessage', async: false })
 export class SafeMessageConstraint implements ValidatorConstraintInterface {
   validate(message: string) {
-    if (!message) return false;
+    if (!message || message.trim().length === 0) return false;
     
-    // Bloquear apenas tags HTML mais óbvias
-    if (/<script|<iframe|<object|<embed/i.test(message)) {
+    // Bloquear qualquer tag HTML
+    if (/<[^>]*>/i.test(message)) {
       return false;
     }
     
-    // Bloquear JavaScript mais óbvio
-    if (/javascript:|data:text\/html|vbscript:/i.test(message)) {
+    // Bloquear JavaScript
+    if (/javascript:|data:text\/html|vbscript:|on\w+\s*=/i.test(message)) {
       return false;
     }
     
-    // Bloquear tentativas óbvias de SQL injection
-    if (/(union\s+select|drop\s+table|delete\s+from)/i.test(message)) {
+    // Bloquear tentativas de SQL injection
+    if (/(union\s+select|drop\s+table|delete\s+from|insert\s+into|update\s+set)/i.test(message)) {
       return false;
     }
     
@@ -45,7 +45,6 @@ export class MessageDto {
   @IsNotEmpty({ message: 'Mensagem é obrigatória' })
   @IsString({ message: 'Mensagem deve ser uma string' })
   @MaxLength(1000, { message: 'Mensagem deve ter no máximo 1000 caracteres' })
-  @Matches(/^[^<>'"]*$/, { message: 'Mensagem não pode conter caracteres especiais como <, >, \', "' })
   @Validate(SafeMessageConstraint)
   content: string; // Padronizado para 'content'
 }

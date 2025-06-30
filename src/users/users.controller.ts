@@ -17,6 +17,7 @@ import { UserRepository } from './csv-user.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ApiBearerAuth, ApiResponse, ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { OnlineUsersService } from '../auth/online-users.service';
+import { BanRepository } from '../bans/ban.repository';
 import * as bcrypt from 'bcrypt';
 
 @ApiTags('Usuários')
@@ -26,19 +27,21 @@ export class UsersController {
   constructor(
     private readonly userRepo: UserRepository,
     private readonly onlineUsers: OnlineUsersService,
+    private readonly banRepository: BanRepository,
   ) {}
 
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Listar todos os usuários' })
   @ApiResponse({
     status: 200,
-    description: 'Lista de usuários com status online',
+    description: 'Lista de usuários com status online e de banimento',
     example: [
       {
         id: '32ae172a-4b7b-44a5-a0c9-082f760af1cf',
         name: 'Rafael Lechensque',
         isCurrentUser: true,
         isOnline: true,
+        status: 'active',
       },
     ],
   })
@@ -46,12 +49,20 @@ export class UsersController {
   async findAll(@Request() req) {
     const allUsers = await this.userRepo.findAll();
 
-    return allUsers.map((user) => ({
-      id: user.id,
-      name: user.name,
-      isCurrentUser: user.id === req.user.id,
-      isOnline: this.onlineUsers.isOnline(user.id),
-    }));
+    const usersWithStatus = await Promise.all(
+      allUsers.map(async (user) => {
+        const isBanned = await this.banRepository.isUserBanned(user.id);
+        return {
+          id: user.id,
+          name: user.name,
+          isCurrentUser: user.id === req.user.id,
+          isOnline: this.onlineUsers.isOnline(user.id),
+          status: isBanned ? 'banned' : 'active',
+        };
+      })
+    );
+
+    return usersWithStatus;
   }
 
   @UseGuards(JwtAuthGuard)
